@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const cmd = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).tool_input.command; const blocked = ['kubectl rollout undo','kubectl delete','terraform destroy','terraform apply','git push --force','rm -rf','DROP TABLE','kubectl exec']; const hit = blocked.find(b => cmd.includes(b)); if (hit) { console.error('BLOCKED: Destructive command requires human approval in Band before execution: ' + hit); process.exit(2); }\""
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run*)",
+      "Bash(npx ts-node*)",
+      "Bash(git status)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)"
+    ]
+  }
+}
