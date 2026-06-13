@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚨 IncidentIQ
 
-## Getting Started
+**Multi-agent incident response system** — built for the [Band of Agents Hackathon](https://lablab.ai) (June 12–19, 2026), Track 3: Regulated & High-Stakes Workflows.
 
-First, run the development server:
+When production goes down, engineers scramble across Slack, Datadog, GitHub, and PagerDuty with no shared context. MTTR averages 45–90 minutes; downtime costs ~$5,600/minute. IncidentIQ spins up a **Band room** the moment an alert fires and coordinates four agents to resolve P0s in **under two minutes** — with a human approval gate before anything is executed.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## The agents
+
+| Agent | Role | Tools |
+|-------|------|-------|
+| 🔍 **Triage** | Reads logs, classifies severity, identifies error signature | Datadog, PagerDuty |
+| 🕵️ **Investigator** | Diffs recent commits, flags the culprit PR/deploy | GitHub |
+| 🔧 **Resolver** | Pulls runbook, drafts fix/rollback, pings human for approval | Runbook skill, Band |
+| 📣 **Notifier** | Posts structured summary to Slack/Band, manages escalation | Slack, Band |
+
+**Band** is the coordination layer — agents post findings to a shared room via `@mentions`, hand off context, and wait on each other before escalating to a human.
+
+## Architecture
+
+```
+Alert fires
+    ↓
+Orchestrator creates Band room → adds all 4 agents
+    ↓
+Triage → posts report @mentioning Investigator
+    ↓
+Investigator → posts report @mentioning Resolver
+    ↓
+Resolver → posts plan @mentioning human approver   ← HUMAN GATE (no auto-deploy)
+    ↓ (after approval)
+Notifier → posts Slack summary, closes room
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Next.js 16** (App Router) + TypeScript + Tailwind v4 — real-time dashboard with SSE agent feed
+- **Band Agent API** — room coordination, `@mention` routing, WebSocket, message lifecycle
+- **Featherless** (OpenAI-compatible) — LLM inference
+- **MCP adapters** — Datadog, PagerDuty, GitHub, Slack
+- **Claude Code** — `CLAUDE.md` agent roles, skills, and a `PreToolUse` hook that blocks destructive commands without approval
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Design
 
-## Learn More
+The UI combines two Figma references into one cohesive dark theme:
+- **Hero** — Serendale.ai blockchain landing (glowing wireframe orb, magenta→cyan gradients, Clash Grotesk)
+- **Dashboard** — Power BI "Vendas" dashboard (KPI cards, charts, sidebar, ranked panels)
 
-To learn more about Next.js, take a look at the following resources:
+## Running locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp .env.example .env.local   # fill in your Band + Featherless keys
+npm install
+npm run dev                  # dashboard at http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Trigger an end-to-end demo incident:
 
-## Deploy on Vercel
+```bash
+npx ts-node demo/run-demo.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Safety (Track 3 fit)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **No auto-deploy** — Resolver produces a *plan*; a human approves before execution.
+2. **Destructive-command hook** — `kubectl rollout undo`, `terraform destroy`, etc. are blocked without sign-off.
+3. **Full audit trail** — every agent decision and tool call is logged as a Band event.
+4. **Fail safe** — agents mark messages failed rather than silently dropping an incident.
+
+---
+
+Built with [Claude Code](https://claude.com/claude-code).
